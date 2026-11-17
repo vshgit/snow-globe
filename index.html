@@ -117,7 +117,8 @@ const EIF = { x: 186, base: -580, h: 140 };         /* башня вдали, п
 const eifHalf = f => .19*Math.exp(-3.6*f)*EIF.h;      /* полуширина на доле высоты f */
 const eifInner = f => f >= .35 ? 0 : f < .173 ? lerp(.58, .5, f/.173) : lerp(.5, .16, (f - .173)/.177);
 const eifY = f => EIF.base - f*EIF.h;
-const SKY_TOP = -586;                                /* верх дальнего ряда крыш (самый низкий) */
+const SKY_TOP = -586;
+const skyline = [];                                  /* профиль дальних крыш — для обрезки блеска башни */                                /* верх дальнего ряда крыш (самый низкий) */
 const SCENE_W = 420, SCENE_H = 802, SCENE_BOTTOM = 62;
 
 /* окна */
@@ -293,8 +294,10 @@ function buildBg(){
 
   /* башня, а перед ней — дальний ряд парижских мансард */
   drawEiffel(g);
+  skyline.length = 0;
   for (let x = box.x0 - 20; x < box.x1;){
     const w = 52 + R()*46, top = SKY_TOP - R()*16, mh = 12 + R()*4;
+    skyline.push({ x, w, top });
     let gg = g.createLinearGradient(0, top, 0, top + 70);
     gg.addColorStop(0,'#232c58'); gg.addColorStop(1,'#1a2148');
     g.fillStyle = gg; g.fillRect(x, top + mh, w + .6, -top - mh - 300);
@@ -900,10 +903,14 @@ function autoLife(dt){
 let NP = 0, px, py, pz, pvx, pvy, pth, pph, pwarm;
 function initSnow(){
   const n = Math.round(clamp(box.w * box.h * .0066, 2500, 7600) * (dprCap < 1.5 ? .7 : 1));
+  const keep = px ? Math.min(NP, n) : 0, old = { px, py, pz, pvx, pvy, pth, pph, pwarm };   /* снег не сбрасываем при пересборке */
   NP = n;
   px = new Float32Array(n); py = new Float32Array(n); pz = new Float32Array(n); pvx = new Float32Array(n); pvy = new Float32Array(n);
   pth = new Float32Array(n); pph = new Float32Array(n); pwarm = new Uint8Array(n);
-  for (let i = 0; i < n; i++){
+  if (keep){ px.set(old.px.subarray(0, keep)); py.set(old.py.subarray(0, keep)); pz.set(old.pz.subarray(0, keep)); pvx.set(old.pvx.subarray(0, keep)); pvy.set(old.pvy.subarray(0, keep));
+    pth.set(old.pth.subarray(0, keep)); pph.set(old.pph.subarray(0, keep)); pwarm.set(old.pwarm.subarray(0, keep));
+    for (let i = 0; i < keep; i++){ if (px[i] < box.x0 || px[i] > box.x1) px[i] = box.x0 + Math.random()*box.w; if (py[i] > box.y1) py[i] = box.y0 + Math.random()*box.h; } }
+  for (let i = keep; i < n; i++){
     px[i] = box.x0 + Math.random()*box.w; py[i] = box.y0 + Math.random()*box.h;
     pz[i] = Math.pow(Math.random(), 1.8); pth[i] = Math.random(); pph[i] = Math.random()*TAU; pwarm[i] = Math.random() < .3 ? 1 : 0;
   }
@@ -1292,14 +1299,17 @@ function drawEiffelFx(dt){
   if (eif.t < 0) return;
   eif.t += dt; if (eif.t > 7){ eif.t = -1; return; }
   const env = clamp(eif.t/.3, 0, 1)*clamp((7 - eif.t)/1.3, 0, 1), r = Math.max(3.2, 1.6/cam.s), wave = (eif.t*.55) % 1.3;
+  ctx.save(); ctx.beginPath();                                   /* только небо над дальними крышами, правее нашей трубы */
+  for (const k of skyline){ const xa = k.x, xb = k.x + k.w + .6; if (xb > xa && xa < x + 120) ctx.rect(xa, -3000, xb - xa, k.top - .5 + 3000); }
+  ctx.clip();
   ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = env*.35; ctx.drawImage(glowSpr, x - 70, eifY(.6) - 90, 140, 180);
+  ctx.globalAlpha = env*.5; ctx.drawImage(glowSpr, x - 29, eifY(.55) - 92, 58, 184);   /* узкий ореол: не дотягивается до нашей трубы */
   for (const p of eifPts){
     const v = Math.sin(time*p.sp + p.ph), w = Math.max(0, 1 - Math.abs(p.fr - wave)*5);
     const a = Math.max(v > .35 ? (v - .35)*1.6 : 0, w); if (a <= .02) continue;
     ctx.globalAlpha = Math.min(1, a)*env; ctx.drawImage(BULB[0], p.x - r, p.y - r, 2*r, 2*r);
   }
-  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.restore();
 }
 
 /* --- тап по луне: сани Санты пролетают по небу --- */
@@ -1516,13 +1526,15 @@ function setCam(e){
 }
 
 /* ======================= кадр ==================================== */
-let perfN = 0, perfSum = 0, perfStage = 0;
+let perfN = 0, perfSum = 0, perfStage = 0, needResize = false;
 function frame(now){
   requestAnimationFrame(frame);
   if (document.hidden){ last = now; return; }
   const dtRaw = (now - last)/1000; last = now;
   const dt = Math.min(.05, Math.max(0, dtRaw));
   time += dt;
+  /* размер меняем прямо перед отрисовкой кадра — иначе между очисткой холста и новым кадром мелькает пустой экран */
+  if (needResize){ needResize = false; const w = window.innerWidth, h = window.innerHeight; if (w > 0 && h > 0 && (w !== W || h !== H || Math.min(window.devicePixelRatio || 1, dprCap) !== dpr)) resize(); }
 
   let e = 0;
   if (state === 'flying'){ flyT += dt/FLY_DUR; if (flyT >= 1){ flyT = 1; arrive(); } e = ease(flyT); }
@@ -1567,7 +1579,7 @@ function frame(now){
   if (state === 'inside' && perfStage < 2 && dtRaw < .2){
     perfSum += dtRaw; perfN++;
     if (perfN >= 100){ const avg = perfSum/perfN; perfN = 0; perfSum = 0;
-      if (avg > .026){ perfStage++; dprCap = perfStage === 1 ? 1.5 : 1; resize(); } else perfStage = 2; }
+      if (avg > .026){ perfStage++; dprCap = perfStage === 1 ? 1.5 : 1; needResize = true; } else perfStage = 2; }
   }
 }
 
@@ -1803,7 +1815,7 @@ function start(data){
   if (data && data.inside){ state = 'inside'; document.body.classList.add('started', 'inside'); }
   if (data && data.muted) setMuted(true);
   let rz = 0;
-  const later = () => { clearTimeout(rz); rz = setTimeout(resize, 160); };
+  const later = () => { clearTimeout(rz); rz = setTimeout(() => { needResize = true; }, 160); };
   addEventListener('resize', later); addEventListener('orientationchange', later);
   if (window.visualViewport) visualViewport.addEventListener('resize', later);
   setInterval(() => { if (window.innerWidth !== W || window.innerHeight !== H) later(); }, 400);   /* поворот экрана не всегда присылает resize */
