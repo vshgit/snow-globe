@@ -1098,12 +1098,22 @@ function drawChild(){
 
 /* --- пасхалка: сапог Санты в трубе --- */
 const boots = [{ cx: -152, t: -1 }, { cx: 108, t: -1 }];
-function tapBoot(b){ if (b.t < 0){ b.t = 0; Music.bells(); } }
+let bootNext = null;
+const bootP = t => t < .5 ? 1 - Math.pow(1 - t/.5, 3) : t > 3.6 ? clamp((4.2 - t)/.6, 0, 1) : 1;
+function tapBoot(b){
+  const other = boots.find(o => o !== b && o.t >= 0);
+  if (other){                                     /* второй сапог ждёт, пока первый спрячется */
+    if (other.t < 3.6) other.t = 4.2 - .6*bootP(other.t);
+    bootNext = b; return;
+  }
+  if (b.t < 0){ b.t = 0; Music.bells(); }
+}
 function drawBoots(dt){
   for (const b of boots){
     if (b.t < 0) continue;
-    b.t += dt; const t = b.t; if (t > 4.2){ b.t = -1; continue; }
-    const p = t < .5 ? 1 - Math.pow(1 - t/.5, 3) : t > 3.6 ? clamp((4.2 - t)/.6, 0, 1) : 1;
+    b.t += dt; const t = b.t;
+    if (t > 4.2){ b.t = -1; if (bootNext && bootNext !== b){ const n = bootNext; bootNext = null; n.t = 0; Music.bells(); } else bootNext = null; continue; }
+    const p = bootP(t);
     const burst = Math.sin(t*2.4) > -.2 ? 1 : .2, k = Math.sin(t*15)*.24*burst*p;
     const g = ctx; g.save();
     g.beginPath(); g.rect(b.cx - 20, -730, 84, 79); g.clip();
@@ -1298,7 +1308,7 @@ let moonFlash = 0;
 const sleighY = x => MOON.y + 95*Math.tanh((x - MOON.x)/330) + Math.sin(x*.021)*2;
 function tapMoon(){
   moonFlash = 1; Music.bells();
-  if (sleighs.length >= 3) return;
+  if (sleighs.some(sl => !sl.done)) return;            /* одни сани за раз */
   const hw = W/2/cam.s;
   /* старт у левого края экрана или чуть выше верхнего — сани видно сразу */
   const top = cam.y - H/2/cam.s, u = clamp((top + 4 - MOON.y)/95, -.97, .97), xTop = MOON.x + 330*Math.atanh(u) - 25;
@@ -1339,7 +1349,7 @@ function drawSleigh(dt){
 }
 function stepSleigh(sl, dt){
   sl.t += dt;
-  const g = ctx, sx = sl.x1 + sl.t*SLEIGH_V, done = sx > sl.x0;
+  const g = ctx, sx = sl.x1 + sl.t*SLEIGH_V, done = sl.done = sx > sl.x0;
   if (!done){
     sl.acc += dt*40;
     while (sl.acc > 1){ sl.acc--; sl.dust.push({ x: sx - 36 - Math.random()*8, y: sleighY(sx - 36) + (Math.random() - .5)*5, vx: -8 - Math.random()*12, vy: 3 + Math.random()*8, life: 1, ph: Math.random()*TAU }); }
@@ -1805,7 +1815,7 @@ const hot = window.claude && window.claude.hot;
 if (hot && hot.snapshot) hot.snapshot(() => ({ inside: state !== 'globe', muted }));
 if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
 
-window.__snowglobe = { wins, begin, shake, lamps, boots, door, visitor, farWins, shops, tapDoor, tapBoot, tapMoon, tapEiffel, get state(){ return state; } };
+window.__snowglobe = { wins, begin, shake, lamps, boots, door, visitor, farWins, shops, sleighs, tapDoor, tapBoot, tapMoon, tapEiffel, get state(){ return state; } };
 })();
 </script>
 </body>
