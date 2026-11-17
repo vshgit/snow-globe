@@ -113,10 +113,11 @@ const CORN = -516, MANS_TOP = -600;
 const BAYS = [-108, 0, 108], WW = 58;
 const GLOBE = { x: 0, y: -312, r: 432 };
 const MOON = { x: -112, y: -712, r: 17 };
-const EIF = { x: 186, base: -562, h: 124 };         /* башня вдали, правее трубы, за крышей соседнего дома */
+const EIF = { x: 186, base: -580, h: 140 };         /* башня вдали, правее трубы, за крышей соседнего дома */
 const eifHalf = f => .19*Math.exp(-3.6*f)*EIF.h;      /* полуширина на доле высоты f */
 const eifInner = f => f >= .35 ? 0 : f < .173 ? lerp(.58, .5, f/.173) : lerp(.5, .16, (f - .173)/.177);
 const eifY = f => EIF.base - f*EIF.h;
+const SKY_TOP = -586;                                /* верх дальнего ряда крыш (самый низкий) */
 const SCENE_W = 420, SCENE_H = 802, SCENE_BOTTOM = 62;
 
 /* окна */
@@ -290,16 +291,36 @@ function buildBg(){
   g.fillStyle = 'rgba(150,165,220,.2)';
   for (const [dx, dy, r] of [[5.5,-3.5,5],[-6,5.5,3.8],[3,8.5,2.2],[-5,-7.5,2]]){ g.beginPath(); g.arc(mx+dx,my+dy,r,0,TAU); g.fill(); }
 
-  /* дальние крыши и башня */
-  g.fillStyle = '#121938';
-  for (let x = box.x0; x < box.x1;){
-    const w = 36 + R()*70, top = -545 - R()*80;
-    g.fillStyle = '#121938'; g.fillRect(x, top, w+1, -top - 300);
-    if (R() < .7){ const cx = x + 4 + R()*(w-14); g.fillRect(cx, top - 8 - R()*8, 7, 18); }
-    for (let i = 0; i < 3; i++) if (R() < .35){ g.fillStyle = 'rgba(255,190,110,.42)'; g.fillRect(x + 4 + R()*(w-8), top + 6 + R()*36, 1.6, 2.4); }
+  /* башня, а перед ней — дальний ряд парижских мансард */
+  drawEiffel(g);
+  for (let x = box.x0 - 20; x < box.x1;){
+    const w = 52 + R()*46, top = SKY_TOP - R()*16, mh = 12 + R()*4;
+    let gg = g.createLinearGradient(0, top, 0, top + 70);
+    gg.addColorStop(0,'#232c58'); gg.addColorStop(1,'#1a2148');
+    g.fillStyle = gg; g.fillRect(x, top + mh, w + .6, -top - mh - 300);
+    g.fillStyle = '#171e42'; g.beginPath(); g.moveTo(x, top + mh); g.lineTo(x + 4, top); g.lineTo(x + w - 4, top); g.lineTo(x + w + .6, top + mh); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(214,224,255,.34)'; g.fillRect(x + 4, top - .8, w - 8, 1.4);
+    g.fillStyle = 'rgba(150,162,210,.22)'; g.fillRect(x, top + mh, w, 1.2);
+    for (let i = 0, nd = Math.max(2, Math.round(w/18)); i < nd; i++){
+      const dx = x + w*(i + .5)/nd - 2.2, lit = R() < .16;
+      g.fillStyle = '#2b3564'; g.fillRect(dx - .8, top + 3, 6, 7.5);
+      g.fillStyle = lit ? 'rgba(255,190,110,.75)' : '#10162f'; g.fillRect(dx, top + 4.2, 4.4, 5.6);
+    }
+    for (let r = 0; r < 3; r++) for (let i = 0, nw = Math.round(w/14); i < nw; i++){
+      const lit = R() < .1; g.fillStyle = lit ? 'rgba(255,186,104,.6)' : 'rgba(10,14,34,.55)';
+      g.fillRect(x + w*(i + .5)/nw - 2, top + mh + 6 + r*17, 4, 9);
+    }
+    const hasCh = R() < .8, cx = x + 6 + R()*(w - 20), chh = 8 + R()*6;
+    if (hasCh && Math.abs(cx + 5 - EIF.x) > 30){
+      g.fillStyle = '#2a2a48'; g.fillRect(cx, top - chh, 10, chh + 2);
+      g.fillStyle = '#3a2f42'; g.fillRect(cx + 1.5, top - chh - 4, 2.6, 4); g.fillRect(cx + 5.8, top - chh - 4, 2.6, 4);
+      g.fillStyle = 'rgba(214,224,255,.4)'; g.fillRect(cx - .5, top - chh - .8, 11, 1.2);
+    }
     x += w;
   }
-  drawEiffel(g);
+  gr = g.createLinearGradient(0, SKY_TOP - 40, 0, SKY_TOP + 80);
+  gr.addColorStop(0,'rgba(40,46,92,0)'); gr.addColorStop(1,'rgba(40,46,92,.35)');
+  g.fillStyle = gr; g.fillRect(box.x0, SKY_TOP - 40, box.w, 120);
 
   /* соседние дома */
   let x = BX0, i = 0;
@@ -427,7 +448,7 @@ function drawNeighbor(g, x0, x1, corn, seed, side){
     sh.target = old !== undefined ? old : (d === 0 || cafe ? 1 : 0); sh.light = sh.target;
     shops.push(sh);
   }
-  g.fillStyle = 'rgba(14,20,52,.3)'; g.fillRect(x0 - 2, mt - 42, Wd + 4, -mt + 42);
+  g.fillStyle = 'rgba(14,20,52,.3)'; g.fillRect(x0 - 2, mt - 2, Wd + 4, -mt + 2);
 }
 
 function drawStreet(g, R){
@@ -850,7 +871,7 @@ function drawLit(w, t){
   winPath(ctx, w); ctx.clip();
   ctx.globalAlpha = a;
   ctx.drawImage(rooms[w.room], w.x, w.y, w.w, w.h);
-  if (cam.s > .5){
+  if (cam.s > V.s0*1.8){
     ctx.translate(cx, w.y + w.h); if (w.flip) ctx.scale(-1, 1);
     drawCurtains(ctx, w);
     SCENES[w.scene](ctx, t + w.ph, w.w, w.h);
@@ -878,7 +899,7 @@ function autoLife(dt){
 /* ======================= снег ==================================== */
 let NP = 0, px, py, pz, pvx, pvy, pth, pph, pwarm;
 function initSnow(){
-  const n = Math.round(clamp(box.w * box.h * .0034, 1300, 3900) * (dprCap < 1.5 ? .7 : 1));
+  const n = Math.round(clamp(box.w * box.h * .0066, 2500, 7600) * (dprCap < 1.5 ? .7 : 1));
   NP = n;
   px = new Float32Array(n); py = new Float32Array(n); pz = new Float32Array(n); pvx = new Float32Array(n); pvy = new Float32Array(n);
   pth = new Float32Array(n); pph = new Float32Array(n); pwarm = new Uint8Array(n);
@@ -897,8 +918,8 @@ function kick(str, dx, dy){
 }
 function shake(str){ storm = Math.min(1, storm + str); kick(str); hideTip(); }
 function stepSnow(dt){
-  if (holding){ storm = Math.min(1, storm + dt*1.2); kick(dt*2.2); }
-  else storm *= Math.exp(-dt/3.3);
+  if (holding){ storm = Math.min(1, storm + dt*1.8); kick(dt*2.6); }
+  else storm *= Math.exp(-dt/4.2);
   const damp = Math.exp(-dt*1.5);
   const wind = Math.sin(time*.23)*6 + storm*Math.sin(time*.9)*40;
   const fallK = 1 + storm*.9;
@@ -914,7 +935,7 @@ function stepSnow(dt){
   }
 }
 function drawSnow(){
-  const dens = .155 + .845*Math.pow(storm, .7)*densCap, s = cam.s, big = 1 + storm*.3;
+  const dens = .08 + .92*Math.pow(storm, .6)*densCap, s = cam.s, big = 1 + storm*.45;
   const hw = W/2/s + 12, hh = H/2/s + 12, x0 = cam.x - hw, x1 = cam.x + hw, y0 = cam.y - hh, y1 = cam.y + hh;
   const minR = .62/s;
   for (let i = 0; i < NP; i++){
@@ -930,7 +951,7 @@ function drawSnow(){
     ctx.drawImage(spr, x - r*1.25, y - r*1.25, r*2.5, r*2.5);
   }
   ctx.globalAlpha = 1;
-  if (storm > .04){ ctx.fillStyle = `rgba(206,218,255,${(storm*.13).toFixed(3)})`; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); }   /* снежная мгла */
+  if (storm > .04){ ctx.fillStyle = `rgba(206,218,255,${(storm*.17).toFixed(3)})`; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); }   /* снежная мгла */
 }
 
 /* ======================= жизнь дома: детали ====================== */
@@ -1201,7 +1222,7 @@ function drawShops(dt){
     ctx.save(); shopPath(ctx, sh); ctx.clip();
     ctx.globalAlpha = sh.light*(sh.kind ? 1 : .88);
     ctx.drawImage(rooms[sh.room], sh.x, -sh.h, sh.w, sh.h);
-    if (cam.s > .5){
+    if (cam.s > V.s0*1.8){
       ctx.translate(sh.x + sh.w/2, 0);
       if (sh.kind) SHOPS[sh.kind](ctx, time + sh.ph, sh.w, sh.h);
       else { fig(ctx); ctx.fillStyle = 'rgba(122,52,16,.5)'; ctx.fillRect(-sh.w/2, -30, sh.w, 30); fig(ctx); ctx.fillRect(-sh.w/2, -31, sh.w, 1.2); }
@@ -1245,7 +1266,7 @@ function drawFar(dt){
 const eif = { t: -1 }, eifPts = [];
 { const R = rng(77);
   for (let i = 0; i < 130; i++){
-    const f = .05 + Math.pow(R(), 1.25)*.92, inn = eifInner(f), sd = R() < .5 ? -1 : 1, u = inn + R()*(1 - inn);
+    const f = .07 + Math.pow(R(), 1.25)*.9, inn = eifInner(f), sd = R() < .5 ? -1 : 1, u = inn + R()*(1 - inn);
     eifPts.push({ x: EIF.x + sd*eifHalf(f)*u, y: eifY(f), fr: f, sp: 5 + R()*9, ph: R()*TAU });
   } }
 function tapEiffel(){ eif.t = 0; Music.chime([84, 88, 91, 96, 100, 103], .07, .5); }
@@ -1261,7 +1282,7 @@ function drawEiffelFx(dt){
   eif.t += dt; if (eif.t > 7){ eif.t = -1; return; }
   const env = clamp(eif.t/.3, 0, 1)*clamp((7 - eif.t)/1.3, 0, 1), r = Math.max(3.2, 1.6/cam.s), wave = (eif.t*.55) % 1.3;
   ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = env*.35; ctx.drawImage(glowSpr, x - 70, eifY(.55) - 90, 140, 180);
+  ctx.globalAlpha = env*.35; ctx.drawImage(glowSpr, x - 70, eifY(.6) - 90, 140, 180);
   for (const p of eifPts){
     const v = Math.sin(time*p.sp + p.ph), w = Math.max(0, 1 - Math.abs(p.fr - wave)*5);
     const a = Math.max(v > .35 ? (v - .35)*1.6 : 0, w); if (a <= .02) continue;
@@ -1306,10 +1327,10 @@ function sleighShape(g, t){
 function drawSleigh(dt){
   if (sleigh.t < 0) return;
   sleigh.t += dt;
-  const g = ctx, sx = sleigh.x0 - sleigh.t*118, done = sx < sleigh.x1;
+  const g = ctx, sx = sleigh.x1 + sleigh.t*118, done = sx > sleigh.x0;
   if (!done){
     sleigh.acc += dt*46;
-    while (sleigh.acc > 1){ sleigh.acc--; sleigh.dust.push({ x: sx + 30 + Math.random()*8, y: sleighY(sx + 30) + (Math.random() - .5)*5, vx: 10 + Math.random()*14, vy: 4 + Math.random()*10, life: 1, ph: Math.random()*TAU }); }
+    while (sleigh.acc > 1){ sleigh.acc--; sleigh.dust.push({ x: sx - 30 - Math.random()*8, y: sleighY(sx - 30) + (Math.random() - .5)*5, vx: -10 - Math.random()*14, vy: 4 + Math.random()*10, life: 1, ph: Math.random()*TAU }); }
   }
   g.globalCompositeOperation = 'lighter';
   for (let i = sleigh.dust.length - 1; i >= 0; i--){
@@ -1321,7 +1342,7 @@ function drawSleigh(dt){
   if (done){ if (!sleigh.dust.length) sleigh.t = -1; hideBehindChimneys(sx); return; }
   const ang = Math.atan(95/330/Math.pow(Math.cosh((sx - MOON.x)/330), 2) + Math.cos(sx*.021)*.042);
   for (const pass of [0, 1]){                                    /* сначала лунный кант, потом чёрный силуэт */
-    g.save(); g.translate(sx, sleighY(sx) - (pass ? 0 : .55)); g.rotate(ang); g.scale(1.12, 1.12);
+    g.save(); g.translate(sx, sleighY(sx) - (pass ? 0 : .55)); g.rotate(ang); g.scale(-1.12, 1.12);
     const col = pass ? '#02030a' : 'rgba(150,170,232,.42)';
     g.fillStyle = col; g.strokeStyle = col; g.lineCap = 'round'; g.lineJoin = 'round';
     sleighShape(g, sleigh.t);
@@ -1333,12 +1354,12 @@ function drawSleigh(dt){
 function hideBehindChimneys(sx){
   const k = bg.width/box.w, blit = (x, y, w, h) => ctx.drawImage(bg, (x - box.x0)*k, (y - box.y0)*k, w*k, h*k, x, y, w, h);
   for (const cx of [-152, 108]){
-    if (cx + 50 < sx - 50 || cx - 4 > sx + 240) continue;
+    if (cx + 50 < sx - 240 || cx - 4 > sx + 60) continue;
     blit(cx - 3.5, -654.5, 51, 52);
     for (let i = 0; i < 4; i++){ const ph = 11 + ((i*7 + (cx > 0 ? 3 : 0)) % 5); blit(cx + 4.6 + i*9.6, -652 - ph, 6.8, ph - 2.4); }
   }
   for (const c of neighChim){
-    if (c.x + 28 < sx - 50 || c.x > sx + 240) continue;
+    if (c.x + 28 < sx - 240 || c.x > sx + 60) continue;
     blit(c.x - 1, c.y - 32, 28, 34);
     for (let i = 0; i < 3; i++) blit(c.x + 3 + i*7, c.y - 40, 4.5, 8.2);
   }
@@ -1350,9 +1371,9 @@ function layoutLamps(){
   const old = new Map(lamps.map(l => [l.x, l])); lamps.length = 0;
   for (let x = 158; x < box.x1 - 10; x += 236) for (const sx of [-x, x]) lamps.push(old.get(sx) || { x: sx, light: 0, target: 0 });
 }
-function drawLampPost(g, x){
+function drawLampPost(g, x, front){
   const IR = '#0d1022';
-  g.fillStyle = 'rgba(10,14,40,.25)'; g.beginPath(); g.ellipse(x, 7.4, 9, 1.8, 0, 0, TAU); g.fill();
+  if (!front){ g.fillStyle = 'rgba(10,14,40,.25)'; g.beginPath(); g.ellipse(x, 7.4, 9, 1.8, 0, 0, TAU); g.fill(); }
   g.fillStyle = IR;
   poly(g, x-4.6,7, x+4.6,7, x+3.4,3.5, x-3.4,3.5);
   g.fillRect(x-3,-9, 6, 12.5);
@@ -1373,7 +1394,10 @@ function drawLampPost(g, x){
 function drawLamps(dt){
   for (const l of lamps){
     l.light += (l.target - l.light)*(1 - Math.exp(-dt*5));
-    const a = l.light, x = l.x; if (a < .01) continue;
+    const a = l.light, x = l.x;
+    if (Math.abs(x - cam.x) > W/2/cam.s + 20) continue;
+    drawLampPost(ctx, x, true);                                   /* столб поверх витрин и открытой двери */
+    if (a < .01) continue;
     const fl = 1 + .03*Math.sin(time*5.1 + x);
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = Math.min(1, a*fl); ctx.drawImage(glowSpr, x - 105, -188, 210, 210); ctx.drawImage(glowSpr, x - 34, -117, 68, 68);
@@ -1562,7 +1586,7 @@ function winAt(cx, cy){
   const p = toWorld(cx, cy);
   let best = null, bd = 1e9;
   for (const w of wins){
-    const m = 7; if (p.x < w.x - m || p.x > w.x + w.w + m || p.y < w.y - m || p.y > w.y + w.h + m) continue;
+    const m = Math.max(7, 9/cam.s); if (p.x < w.x - m || p.x > w.x + w.w + m || p.y < w.y - m || p.y > w.y + w.h + m) continue;
     const d = Math.hypot(p.x - (w.x + w.w/2), p.y - (w.y + w.h/2)); if (d < bd){ bd = d; best = w; }
   }
   return best;
@@ -1572,7 +1596,7 @@ function hitAt(cx, cy){
   for (const l of lamps) if (Math.abs(p.x - l.x) < 11 && p.y > -108 && p.y < 12) return () => { l.target = l.target ? 0 : 1; };
   if (Math.abs(p.x) < 31 && p.y > -96 && p.y < 3) return tapDoor;
   if (Math.hypot(p.x - MOON.x, p.y - MOON.y) < 26) return tapMoon;
-  if (Math.abs(p.x - EIF.x) < 25 && p.y < EIF.base - 5 && p.y > EIF.base - EIF.h - 12) return tapEiffel;
+  if (Math.abs(p.x - EIF.x) < 25 && p.y < SKY_TOP - 4 && p.y > EIF.base - EIF.h - 12) return tapEiffel;
   for (const sh of shops) if (p.x > sh.x - 2 && p.x < sh.x + sh.w + 2 && p.y > -sh.h - 2 && p.y < 2) return () => { sh.target = sh.target ? 0 : 1; };
   for (const b of boots) if (p.x > b.cx - 5 && p.x < b.cx + 49 && p.y > -682 && p.y < -598) return () => tapBoot(b);
   const w = winAt(cx, cy);
@@ -1755,7 +1779,10 @@ function start(data){
   if (data && data.inside){ state = 'inside'; document.body.classList.add('started', 'inside'); }
   if (data && data.muted) setMuted(true);
   let rz = 0;
-  addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(resize, 160); });
+  const later = () => { clearTimeout(rz); rz = setTimeout(resize, 160); };
+  addEventListener('resize', later); addEventListener('orientationchange', later);
+  if (window.visualViewport) visualViewport.addEventListener('resize', later);
+  setInterval(() => { if (window.innerWidth !== W || window.innerHeight !== H) later(); }, 400);   /* поворот экрана не всегда присылает resize */
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => {});
   last = performance.now();
   requestAnimationFrame(frame);
