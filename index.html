@@ -901,17 +901,21 @@ function autoLife(dt){
 
 /* ======================= снег ==================================== */
 let NP = 0, px, py, pz, pvx, pvy, pth, pph, pwarm;
+/* над видимым небом — невидимый «запас» высоты: снежинки появляются в нём на случайной высоте,
+   поэтому не сбиваются в горизонтальные слои */
+let snowTop = 0;
 function initSnow(){
-  const n = Math.round(clamp(box.w * box.h * .0066, 2500, 7600) * (dprCap < 1.5 ? .7 : 1));
+  snowTop = box.y0 - box.h*.45;
+  const n = Math.round(clamp(box.w * box.h * .0066*1.45, 3600, 10500) * (dprCap < 1.5 ? .7 : 1));
   const keep = px ? Math.min(NP, n) : 0, old = { px, py, pz, pvx, pvy, pth, pph, pwarm };   /* снег не сбрасываем при пересборке */
   NP = n;
   px = new Float32Array(n); py = new Float32Array(n); pz = new Float32Array(n); pvx = new Float32Array(n); pvy = new Float32Array(n);
   pth = new Float32Array(n); pph = new Float32Array(n); pwarm = new Uint8Array(n);
   if (keep){ px.set(old.px.subarray(0, keep)); py.set(old.py.subarray(0, keep)); pz.set(old.pz.subarray(0, keep)); pvx.set(old.pvx.subarray(0, keep)); pvy.set(old.pvy.subarray(0, keep));
     pth.set(old.pth.subarray(0, keep)); pph.set(old.pph.subarray(0, keep)); pwarm.set(old.pwarm.subarray(0, keep));
-    for (let i = 0; i < keep; i++){ if (px[i] < box.x0 || px[i] > box.x1) px[i] = box.x0 + Math.random()*box.w; if (py[i] > box.y1) py[i] = box.y0 + Math.random()*box.h; } }
+    for (let i = 0; i < keep; i++){ if (px[i] < box.x0 || px[i] > box.x1) px[i] = box.x0 + Math.random()*box.w; if (py[i] > box.y1 || py[i] < snowTop) py[i] = snowTop + Math.random()*(box.y1 - snowTop); } }
   for (let i = keep; i < n; i++){
-    px[i] = box.x0 + Math.random()*box.w; py[i] = box.y0 + Math.random()*box.h;
+    px[i] = box.x0 + Math.random()*box.w; py[i] = snowTop + Math.random()*(box.y1 - snowTop);
     pz[i] = Math.pow(Math.random(), 1.8); pth[i] = Math.random(); pph[i] = Math.random()*TAU; pwarm[i] = Math.random() < .3 ? 1 : 0;
   }
 }
@@ -936,8 +940,8 @@ function stepSnow(dt){
     py[i] += ((15 + 58*z)*fallK + pvy[i])*dt;
     pvx[i] *= damp; pvy[i] *= damp;
     const floor = 8 + (box.y1 - 8)*z*z;
-    if (py[i] > floor){ py[i] = box.y0 - Math.random()*30; px[i] = box.x0 + Math.random()*box.w; pvx[i] = pvy[i] = 0; }
-    else if (py[i] < box.y0 - 60) py[i] = box.y0 - 60;
+    if (py[i] > floor){ py[i] = snowTop + Math.random()*(box.y0 - snowTop); px[i] = box.x0 + Math.random()*box.w; pvx[i] = pvy[i] = 0; }
+    else if (py[i] < snowTop){ py[i] = snowTop + Math.random()*(box.y0 - snowTop); pvy[i] = 0; }
     if (px[i] < box.x0) px[i] += box.w; else if (px[i] > box.x1) px[i] -= box.w;
   }
 }
